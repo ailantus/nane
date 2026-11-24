@@ -13,7 +13,8 @@ on:
 
 jobs:
   DomainKontrol:
-    runs-on: ubuntu-latest
+    # ubuntu-latest (26.04) calistiricisinda Python 3.11.8 bulunamadigi icin sabit surum kullaniliyor.
+    runs-on: ubuntu-24.04
     #runs-on: self-hosted
 
     env:
@@ -29,10 +30,10 @@ jobs:
       - name : Depo Kontrolü
         uses : actions/checkout@v4
 
-      - name : Python 3.11.8 Yükle
+      - name : Python 3.12 Yükle
         uses : actions/setup-python@v5
         with :
-          python-version: 3.11.8
+          python-version: '3.12'
 
       - name : Python Sürümünü Göster
         run  : python -c "import sys; print(sys.version)"
@@ -65,6 +66,16 @@ jobs:
 
           git checkout -B $BRANCH
           git push origin $BRANCH --force
+
+          # Ayni baslikta acik bir PR varsa tekrar PR acmayi deneme.
+          OPEN_PR=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/pulls?state=open&head=$REPO_OWNER:$BRANCH" | jq 'length')
+
+          if [ "$OPEN_PR" != "0" ]; then
+            echo "Zaten acik bir domain PR'i var ($OPEN_PR); yeni PR olusturulmadi."
+            exit 0
+          fi
 
           curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
