@@ -44,32 +44,26 @@ class MainUrlUpdater:
         return None
 
     @staticmethod
-    def _guvenli_yonlendirme(eski_url, yeni_url, ayni_domain=True):
-        """Şüpheli yönlendirmelerin eklenti dosyasını bozmasını engelle."""
+    def _guvenli_yonlendirme(eski_url, yeni_url):
+        """HTTPS ve temiz bir adres olmayan yönlendirmeleri engelle."""
         eski, yeni = urlparse(eski_url), urlparse(yeni_url)
 
         if yeni.scheme != "https":
             return False, "HTTPS değil"
 
-        if yeni.path not in ("", "/"):
-            return False, "beklenmeyen yol"
+        if yeni.username or yeni.password or yeni.port:
+            return False, "beklenmeyen kullanıcı/bağlantı noktası"
 
-        if not ayni_domain:
-            return True, ""
+        if yeni.path not in ("", "/") or yeni.query or yeni.fragment:
+            return False, "beklenmeyen yol/sorgu"
+
+        if not yeni.hostname or "." not in yeni.hostname:
+            return False, "geçersiz domain"
 
         eski_host = (eski.hostname or "").lower().removeprefix("www.")
-        yeni_host = (yeni.hostname or "").lower().removeprefix("www.")
-
-        if not eski_host or not yeni_host:
-            return False, "domain okunamadı"
-
-        ayni_site = (
-            yeni_host == eski_host
-            or yeni_host.endswith("." + eski_host)
-            or eski_host.endswith("." + yeni_host)
-        )
-        if not ayni_site:
-            return False, "farklı domain"
+        yeni_host = yeni.hostname.lower().removeprefix("www.")
+        if eski_host != yeni_host:
+            return True, "domain değişti"
 
         return True, ""
 
@@ -165,12 +159,13 @@ class MainUrlUpdater:
             if mainurl == final_url:
                 continue
 
-            guvenli, sebep = self._guvenli_yonlendirme(
-                mainurl, final_url, ayni_domain=eklenti_adi not in {"RecTV", "GolgeTV"}
-            )
+            guvenli, sebep = self._guvenli_yonlendirme(mainurl, final_url)
             if not guvenli:
                 konsol.log(f"[!] Şüpheli domain değişikliği atlandı : {mainurl} -> {final_url} ({sebep})")
                 continue
+
+            if sebep == "domain değişti":
+                konsol.log(f"[!] Yeni domain uygulanıyor : {mainurl} -> {final_url}")
 
             self._mainurl_guncelle(dosya, mainurl, final_url)
 
