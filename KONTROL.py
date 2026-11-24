@@ -5,6 +5,7 @@ from cloudscraper import CloudScraper
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 import os, re, base64, json
+from urllib.parse import urlparse
 
 class MainUrlUpdater:
     def __init__(self, base_dir="."):
@@ -41,6 +42,36 @@ class MainUrlUpdater:
                 return mainurl[1]
 
         return None
+
+    @staticmethod
+    def _guvenli_yonlendirme(eski_url, yeni_url, ayni_domain=True):
+        """Şüpheli yönlendirmelerin eklenti dosyasını bozmasını engelle."""
+        eski, yeni = urlparse(eski_url), urlparse(yeni_url)
+
+        if yeni.scheme != "https":
+            return False, "HTTPS değil"
+
+        if yeni.path not in ("", "/"):
+            return False, "beklenmeyen yol"
+
+        if not ayni_domain:
+            return True, ""
+
+        eski_host = (eski.hostname or "").lower().removeprefix("www.")
+        yeni_host = (yeni.hostname or "").lower().removeprefix("www.")
+
+        if not eski_host or not yeni_host:
+            return False, "domain okunamadı"
+
+        ayni_site = (
+            yeni_host == eski_host
+            or yeni_host.endswith("." + eski_host)
+            or eski_host.endswith("." + yeni_host)
+        )
+        if not ayni_site:
+            return False, "farklı domain"
+
+        return True, ""
 
     def _mainurl_guncelle(self, kt_dosya_yolu, eski_url, yeni_url):
         with open(kt_dosya_yolu, "r+", encoding="utf-8") as file:
@@ -99,6 +130,10 @@ class MainUrlUpdater:
 
             print("\n")
             konsol.log(f"[~] Kontrol Ediliyor : {eklenti_adi}")
+            if not mainurl:
+                konsol.log(f"[!] mainUrl bulunamadı : {eklenti_adi}")
+                continue
+
             if eklenti_adi == "RecTV":
                 try:
                     final_url = self._rectv_ver()
@@ -128,6 +163,13 @@ class MainUrlUpdater:
                 final_url = istek.url[:-1] if istek.url.endswith("/") else istek.url
 
             if mainurl == final_url:
+                continue
+
+            guvenli, sebep = self._guvenli_yonlendirme(
+                mainurl, final_url, ayni_domain=eklenti_adi not in {"RecTV", "GolgeTV"}
+            )
+            if not guvenli:
+                konsol.log(f"[!] Şüpheli domain değişikliği atlandı : {mainurl} -> {final_url} ({sebep})")
                 continue
 
             self._mainurl_guncelle(dosya, mainurl, final_url)
