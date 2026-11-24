@@ -1,0 +1,9 @@
+{
+  "name": "ailantus/nane",
+  "description": "KekikAkademi CloudStream eklentileri",
+  "iconUrl": "https://github.com/ailantus.png?size=64",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/ailantus/nane/builds/plugins.json"
+  ]
+}
